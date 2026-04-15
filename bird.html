@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>飞飞鸟</title>
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: none; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #87CEEB; font-family: -apple-system, sans-serif; display: flex; flex-direction: column; }
+        #game-area { position: relative; width: 100%; flex: 1; background: #87CEEB; }
+        canvas { display: block; width: 100%; height: 100%; }
+        /* 排行榜样式 */
+        #rank-panel { background: #fff; color: #ff69b4; padding: 10px; border-top: 4px solid #ff69b4; min-height: 120px; }
+        .rank-title { text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 8px; border-bottom: 1px dashed #ffb6c1; padding-bottom: 4px; }
+        .rank-item { display: flex; justify-content: space-between; font-size: 13px; margin: 4px 0; color: #555; }
+        .rank-item.top { color: #ff1493; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="game-area">
+        <canvas id="cvs"></canvas>
+    </div>
+    <div id="rank-panel">
+        <div class="rank-title">🏆 粉嫩战力榜</div>
+        <div id="rank-list"></div>
+    </div>
+
+    <script>
+        const cvs = document.getElementById('cvs');
+        const ctx = cvs.getContext('2d');
+        const rankListEl = document.getElementById('rank-list');
+
+        let bird, pipes, clouds, score, state, speed;
+        const pipeColors = ['#FFB6C1', '#98FB98', '#87CEFA', '#DDA0DD', '#F0E68C', '#FFA07A'];
+
+        const cfg = {
+            gravity: 0.07,
+            jumpPower: -9.5,
+            friction: 0.98,
+            baseSpeed: 2.7,
+            gapRatio: 0.42,
+            spacingRatio: 0.9
+        };
+
+        function resize() {
+            const dpr = window.devicePixelRatio || 1;
+            cvs.width = window.innerWidth * dpr;
+            cvs.height = cvs.clientHeight * dpr;
+            ctx.scale(dpr, dpr);
+        }
+
+        function drawBird(x, y, angle, frame) {
+            const size = 60;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            let grad = ctx.createRadialGradient(0, 0, 5, 0, 0, 40);
+            grad.addColorStop(0, "#FFC0CB"); grad.addColorStop(1, "#FF69B4");
+            ctx.fillStyle = grad;
+            ctx.beginPath(); ctx.roundRect(-size/2, -size/2, size, size, 22); ctx.fill();
+            ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.stroke();
+            ctx.fillStyle = "white"; ctx.beginPath(); ctx.arc(22, -18, 15, 0, 6.28); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(26, -18, 6, 0, 6.28); ctx.fill();
+            ctx.fillStyle = "#FFA500"; ctx.beginPath();
+            ctx.moveTo(size/2 - 2, 0); ctx.lineTo(size/2 + 25, 8); ctx.lineTo(size/2 - 2, 16); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = "#FF1493";
+            let wing = Math.sin(frame * 0.15) * 30;
+            ctx.beginPath(); ctx.ellipse(-25, 12, 28, Math.abs(wing)+8, 0, 0, 6.28); ctx.fill(); ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawClouds() {
+            ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+            clouds.forEach(c => {
+                ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, 6.28); ctx.arc(c.x + c.r, c.y, c.r * 0.8, 0, 6.28); ctx.arc(c.x - c.r, c.y, c.r * 0.8, 0, 6.28); ctx.fill();
+                c.x -= speed * 0.3; if (c.x + c.r * 2 < 0) c.x = cvs.width + c.r * 2;
+            });
+        }
+
+        function init() {
+            resize();
+            const vw = window.innerWidth;
+            const vh = cvs.clientHeight;
+            bird = { x: vw * 0.25, y: vh / 2, v: 0, r: 25, angle: 0, frame: 0 };
+            pipes = []; score = 0; state = 'WAIT'; speed = cfg.baseSpeed;
+            clouds = []; for(let i=0; i<5; i++) clouds.push({ x: Math.random()*vw, y: Math.random()*vh*0.5, r: 30 + Math.random()*30 });
+            updateRankDisplay();
+        }
+
+        // --- 排行榜逻辑 ---
+        function updateRankDisplay() {
+            let data = JSON.parse(localStorage.getItem('pink_bird_scores') || '[]');
+            rankListEl.innerHTML = data.length > 0 
+                ? data.map((it, idx) => `<div class="rank-item ${idx===0?'top':''}"><span>${idx+1}. ${it.name}</span><span>${it.score}分</span></div>`).join('')
+                : '<div style="text-align:center; font-size:12px; color:#aaa;">暂无数据，快去起飞！</div>';
+        }
+
+        function saveScore(s) {
+            let data = JSON.parse(localStorage.getItem('pink_bird_scores') || '[]');
+            if (data.length < 5 || s > data[data.length-1].score) {
+                setTimeout(() => {
+                    let name = prompt("打破纪录！你是谁？") || "猛男";
+                    data.push({ name: name.substring(0, 5), score: s });
+                    data.sort((a,b) => b.score - a.score);
+                    localStorage.setItem('pink_bird_scores', JSON.stringify(data.slice(0, 5)));
+                    updateRankDisplay();
+                }, 100);
+            }
+        }
+
+        function act(e) {
+            if(e) e.preventDefault();
+            if (state === 'WAIT') state = 'PLAY';
+            if (state === 'PLAY') bird.v = cfg.jumpPower; 
+            else if (state === 'DEAD') init();
+        }
+
+        cvs.addEventListener('touchstart', act, {passive: false});
+        cvs.addEventListener('mousedown', act);
+
+        function update() {
+            if (state !== 'PLAY') return;
+            const vh = cvs.clientHeight; const vw = window.innerWidth;
+            bird.v += cfg.gravity; bird.v *= cfg.friction; bird.y += bird.v; bird.frame++;
+            bird.angle = Math.max(-0.3, Math.min(0.3, bird.v / 20));
+            if (bird.y > vh || bird.y < 0) { state = 'DEAD'; saveScore(score); }
+            const pipeSpace = vh * cfg.spacingRatio;
+            if (pipes.length === 0 || (vw - pipes[pipes.length-1].x) >= pipeSpace) {
+                let gh = vh * cfg.gapRatio;
+                pipes.push({ x: vw, t: Math.random()*(vh-gh-200)+100, g: gh, p: false, c: pipeColors[Math.floor(Math.random()*pipeColors.length)] });
+            }
+            pipes.forEach((p, i) => {
+                p.x -= speed;
+                if (bird.x + bird.r > p.x && bird.x - bird.r < p.x + 90) {
+                    if (bird.y - bird.r < p.t || bird.y + bird.r > p.t + p.g) { state = 'DEAD'; saveScore(score); }
+                }
+                if (!p.p && p.x + 90 < bird.x) { score++; p.p = true; speed += 0.03; }
+                if (p.x + 90 < 0) pipes.splice(i, 1);
+            });
+        }
+
+        function draw() {
+            const vw = window.innerWidth; const vh = cvs.clientHeight;
+            ctx.fillStyle = "#87CEEB"; ctx.fillRect(0, 0, vw, vh);
+            drawClouds();
+            pipes.forEach(p => {
+                ctx.fillStyle = p.c; ctx.fillRect(p.x, 0, 90, p.t); ctx.fillRect(p.x, p.t + p.g, 90, vh);
+                ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.strokeRect(p.x, 0, 90, p.t); ctx.strokeRect(p.x, p.t + p.g, 90, vh);
+            });
+            drawBird(bird.x, bird.y, bird.angle, bird.frame);
+            ctx.fillStyle = "#fff"; ctx.font = "bold 70px Arial"; ctx.textAlign = "center";
+            ctx.shadowBlur = 10; ctx.shadowColor = "rgba(255,105,180,0.8)";
+            ctx.fillText(score, vw/2, 130); ctx.shadowBlur = 0;
+            if (state === 'WAIT') { ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.fillRect(0,0,vw,vh); ctx.fillStyle = "#FF69B4"; ctx.fillText("起飞！", vw/2, vh/2); }
+            if (state === 'DEAD') { ctx.fillStyle = "rgba(255,255,255,0.4)"; ctx.fillRect(0,0,vw,vh); ctx.fillStyle = "#FF69B4"; ctx.fillText("再来一次", vw/2, vh/2); }
+            requestAnimationFrame(() => { update(); draw(); });
+        }
+
+        window.onload = () => { init(); draw(); };
+    </script>
+</body>
+</html>
