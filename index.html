@@ -150,7 +150,7 @@
                         state = 'DEAD'; saveScore(score);
                     }
                 }
-                if (!p.p && p.x + pipeW < bird.x) { score++; p.p = true; speed += 3; }
+                if (!p.p && p.x + pipeW < bird.x) { score++; p.p = true; speed += 5; }
                 if (p.x + pipeW < 0) pipes.splice(i, 1);
             });
         }
