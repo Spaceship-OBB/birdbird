@@ -211,14 +211,17 @@
         window.addEventListener('resize', init);
 
         // 排行榜逻辑
-       async function updateRankDisplay() {
+     // 替换你代码中第 213 行之后的所有内容
+// --- 排行榜逻辑 ---
+
+// 1. 获取并显示
+async function updateRankDisplay() {
     try {
         const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
             headers: { 'Authorization': `token ${GIST_TOKEN}` },
             cache: 'no-store'
         });
         const gist = await res.json();
-        // 解析 Gist 里的 rank.json 文件
         const data = JSON.parse(gist.files[FILE_NAME].content || '[]');
 
         rankListEl.innerHTML = data.length > 0 ? 
@@ -226,15 +229,48 @@
             : '<div style="text-align:center; font-size:12px; color:#aaa;">暂无数据</div>';
         return data;
     } catch (e) {
-        console.error("排行榜同步失败", e);
-        rankListEl.innerHTML = '<div style="text-align:center; font-size:12px; color:#aaa;">加载中...</div>';
+        console.error("加载排行失败", e);
+        rankListEl.innerHTML = "同步中...";
     }
 }
 
-        window.onload = () => {
-            init();
-            requestAnimationFrame(gameLoop);
-        };
+// 2. 保存分数 (你之前漏掉的部分)
+async function saveScore(s) {
+    if (s <= 0) return;
+    
+    // 先拿最新的云端数据
+    let data = await updateRankDisplay() || [];
+
+    // 判断是否进前五
+    if (data.length < 5 || s > data[data.length - 1].score) {
+        // 稍微延迟弹出，防止卡顿
+        setTimeout(async () => {
+            let name = prompt("纪录被打破！你是谁？") || "飞飞鸟";
+            data.push({ name: name.substring(0, 5), score: s });
+            data.sort((a, b) => b.score - a.score);
+            data = data.slice(0, 5); // 只取前五名
+
+            // 发送到 Gist 数据库
+            try {
+                await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+                    method: 'PATCH',
+                    headers: { 'Authorization': `token ${GIST_TOKEN}` },
+                    body: JSON.stringify({
+                        files: { [FILE_NAME]: { content: JSON.stringify(data) } }
+                    })
+                });
+                updateRankDisplay(); // 刷新显示
+            } catch (e) {
+                alert("保存失败，Token可能失效了");
+            }
+        }, 100);
+    }
+}
+
+window.onload = () => {
+    init();
+    requestAnimationFrame(gameLoop);
+};
     </script>
 </body>
 </html>
