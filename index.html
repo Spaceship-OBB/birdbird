@@ -29,6 +29,9 @@
         const cvs = document.getElementById('cvs');
         const ctx = cvs.getContext('2d');
         const rankListEl = document.getElementById('rank-list');
+        const GIST_ID = "3515342b5a2cd459e3e00730127b0fa5"; 
+        const GIST_TOKEN = "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"; 
+        const FILE_NAME = "rank.json";
 
         let bird, pipes, clouds, score, state, speed, lastTime;
         const pipeColors = ['#FFB6C1', '#98FB98', '#87CEFA', '#DDA0DD', '#F0E68C', '#FFA07A'];
@@ -208,25 +211,25 @@
         window.addEventListener('resize', init);
 
         // 排行榜逻辑
-        function updateRankDisplay() {
-            let data = JSON.parse(localStorage.getItem('pink_bird_scores') || '[]');
-            rankListEl.innerHTML = data.length > 0 
-                ? data.map((it, idx) => `<div class="rank-item ${idx===0?'top':''}"><span>${idx+1}. ${it.name}</span><span>${it.score}分</span></div>`).join('')
-                : '<div style="text-align:center; font-size:12px; color:#aaa;">暂无数据</div>';
-        }
+       async function updateRankDisplay() {
+    try {
+        const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+            headers: { 'Authorization': `token ${GIST_TOKEN}` },
+            cache: 'no-store'
+        });
+        const gist = await res.json();
+        // 解析 Gist 里的 rank.json 文件
+        const data = JSON.parse(gist.files[FILE_NAME].content || '[]');
 
-        function saveScore(s) {
-            let data = JSON.parse(localStorage.getItem('pink_bird_scores') || '[]');
-            if (s > 0 && (data.length < 5 || s > (data[data.length-1]?.score || 0))) {
-                setTimeout(() => {
-                    let name = prompt("纪录被打破！你是谁？") || "飞飞鸟";
-                    data.push({ name: name.substring(0, 5), score: s });
-                    data.sort((a,b) => b.score - a.score);
-                    localStorage.setItem('pink_bird_scores', JSON.stringify(data.slice(0, 5)));
-                    updateRankDisplay();
-                }, 100);
-            }
-        }
+        rankListEl.innerHTML = data.length > 0 ? 
+            data.map((it, idx) => `<div class="rank-item ${idx===0?'top':''}"><span>${idx+1}. ${it.name}</span><span>${it.score}分</span></div>`).join('') 
+            : '<div style="text-align:center; font-size:12px; color:#aaa;">暂无数据</div>';
+        return data;
+    } catch (e) {
+        console.error("排行榜同步失败", e);
+        rankListEl.innerHTML = '<div style="text-align:center; font-size:12px; color:#aaa;">加载中...</div>';
+    }
+}
 
         window.onload = () => {
             init();
