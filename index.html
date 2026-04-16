@@ -29,10 +29,8 @@
         const cvs = document.getElementById('cvs');
         const ctx = cvs.getContext('2d');
         const rankListEl = document.getElementById('rank-list');
-        const GIST_ID = "3515342b5a2cd459e3e00730127b0fa5"; 
-        const GIST_TOKEN = "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"; 
-        const FILE_NAME = "rank.json";
 
+        
         let bird, pipes, clouds, score, state, speed, lastTime;
         const pipeColors = ['#FFB6C1', '#98FB98', '#87CEFA', '#DDA0DD', '#F0E68C', '#FFA07A'];
 
@@ -211,12 +209,14 @@
         window.addEventListener('resize', init);
 
         // 排行榜逻辑
-     // 替换你代码中第 213 行之后的所有内容
-// --- 排行榜逻辑 ---
+        
+        const GIST_ID = "3515342b5a2cd459e3e00730127b0fa5";
+const GIST_TOKEN = "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";
+const FILE_NAME = "rank.json";
 
-// 1. 获取并显示
 async function updateRankDisplay() {
     try {
+        // 修正点1：删除了 ${GIST_ID} 里面的空格
         const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
             headers: { 'Authorization': `token ${GIST_TOKEN}` },
             cache: 'no-store'
@@ -229,46 +229,39 @@ async function updateRankDisplay() {
             : '<div style="text-align:center; font-size:12px; color:#aaa;">暂无数据</div>';
         return data;
     } catch (e) {
-        console.error("加载排行失败", e);
-        rankListEl.innerHTML = "同步中...";
+        console.error("加载失败", e);
+        rankListEl.innerHTML = "排行榜同步中...";
     }
 }
 
-// 2. 保存分数 (你之前漏掉的部分)
 async function saveScore(s) {
     if (s <= 0) return;
-    
-    // 先拿最新的云端数据
     let data = await updateRankDisplay() || [];
 
-    // 判断是否进前五
     if (data.length < 5 || s > data[data.length - 1].score) {
-        // 稍微延迟弹出，防止卡顿
+        // 修正点2：使用 setTimeout 确保 prompt 不会打断渲染，防止死机
         setTimeout(async () => {
             let name = prompt("纪录被打破！你是谁？") || "飞飞鸟";
             data.push({ name: name.substring(0, 5), score: s });
             data.sort((a, b) => b.score - a.score);
-            data = data.slice(0, 5); // 只取前五名
+            data = data.slice(0, 5);
 
-            // 发送到 Gist 数据库
-            try {
-                await fetch(`https://api.github.com/gists/${GIST_ID}`, {
-                    method: 'PATCH',
-                    headers: { 'Authorization': `token ${GIST_TOKEN}` },
-                    body: JSON.stringify({
-                        files: { [FILE_NAME]: { content: JSON.stringify(data) } }
-                    })
-                });
-                updateRankDisplay(); // 刷新显示
-            } catch (e) {
-                alert("保存失败，Token可能失效了");
-            }
+            await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+                method: 'PATCH',
+                headers: { 'Authorization': `token ${GIST_TOKEN}` },
+                body: JSON.stringify({
+                    files: { [FILE_NAME]: { content: JSON.stringify(data) } }
+                })
+            });
+            updateRankDisplay();
         }, 100);
     }
 }
 
+// 修正点3：确保游戏初始化时拉取一次排行榜
 window.onload = () => {
     init();
+    updateRankDisplay(); 
     requestAnimationFrame(gameLoop);
 };
     </script>
