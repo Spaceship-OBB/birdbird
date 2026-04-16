@@ -211,12 +211,11 @@
         // 排行榜逻辑
         
         const GIST_ID = "3515342b5a2cd459e3e00730127b0fa5";
-    const GIST_TOKEN = "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";
+    const GIST_TOKEN = "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";
     const FILE_NAME = "rank.json";
 
 async function updateRankDisplay() {
     try {
-        // 修正点1：删除了 ${GIST_ID} 里面的空格
         const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
             headers: { 'Authorization': `token ${GIST_TOKEN}` },
             cache: 'no-store'
